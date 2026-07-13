@@ -391,5 +391,28 @@ app.post('/api/create-admin', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
+// ============================
+//  DELETE USER (Admin Only)
+// ============================
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'Unauthorized' });
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden. Admin only.' });
+    }
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    // Prevent deleting yourself
+    if (user.email === decoded.email) {
+      return res.status(400).json({ error: 'You cannot delete yourself.' });
+    }
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: 'User removed successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
