@@ -22,7 +22,45 @@ mongoose.connect(process.env.MONGO_URI)
 // Resend Setup (Email)
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://peppy-buttercream-008e87.netlify.app';
+// ============================
+//  CREATE ADMIN (Direct Setup)
+// ============================
+app.post('/api/create-admin', async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
 
+    // Check if user already exists
+    const existing = await User.findOne({ email });
+    if (existing) {
+      return res.status(400).json({ error: 'User already exists. Try logging in.' });
+    }
+
+    // Create new user (password will be hashed by pre-save hook)
+    const user = new User({
+      name: name || 'Admin',
+      email,
+      password,  // pre-save hook will hash this
+      role: 'admin',
+      status: 'active'
+    });
+    await user.save();
+
+    res.status(201).json({ 
+      message: '✅ Admin user created successfully!', 
+      email: user.email,
+      role: user.role
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+});
 // ============================
 //  HEALTH CHECK (cron-job)
 // ============================
