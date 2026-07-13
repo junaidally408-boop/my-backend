@@ -22,45 +22,7 @@ mongoose.connect(process.env.MONGO_URI)
 // Resend Setup (Email)
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://peppy-buttercream-008e87.netlify.app';
-// ============================
-//  CREATE ADMIN (Direct Setup)
-// ============================
-app.post('/api/create-admin', async (req, res) => {
-  try {
-    const { email, password, name } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' });
-    }
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
-    }
 
-    // Check if user already exists
-    const existing = await User.findOne({ email });
-    if (existing) {
-      return res.status(400).json({ error: 'User already exists. Try logging in.' });
-    }
-
-    // Create new user (password will be hashed by pre-save hook)
-    const user = new User({
-      name: name || 'Admin',
-      email,
-      password,  // pre-save hook will hash this
-      role: 'admin',
-      status: 'active'
-    });
-    await user.save();
-
-    res.status(201).json({ 
-      message: '✅ Admin user created successfully!', 
-      email: user.email,
-      role: user.role
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
-  }
-});
 // ============================
 //  HEALTH CHECK (cron-job)
 // ============================
@@ -83,7 +45,7 @@ app.post('/api/invite', async (req, res) => {
 
     const token = require('crypto').randomBytes(32).toString('hex');
     const expiry = new Date();
-    expiry.setHours(expiry.getHours() + 72); // 72 hours valid
+    expiry.setHours(expiry.getHours() + 72);
 
     if (user) {
       user.name = name; user.role = role || 'user'; user.clientId = clientId || null;
@@ -97,10 +59,9 @@ app.post('/api/invite', async (req, res) => {
       await newUser.save();
     }
 
-    // Send Email
     const link = `${FRONTEND_URL}/?token=${token}&email=${encodeURIComponent(email)}`;
     await resend.emails.send({
-      from: 'Virtual Ally <onboarding@resend.dev>', // Resend ki default hai
+      from: 'Virtual Ally <onboarding@resend.dev>',
       to: email,
       subject: 'You are invited to Virtual Ally!',
       html: `<h2>Welcome, ${name}!</h2>
@@ -153,8 +114,8 @@ app.post('/api/set-password', async (req, res) => {
 
     const jwtToken = jwt.sign({ id: user._id, email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-    res.status(200).json({ 
-      message: 'Account activated!', 
+    res.status(200).json({
+      message: 'Account activated!',
       token: jwtToken,
       user: { id: user._id, name: user.name, email: user.email, role: user.role, clientId: user.clientId }
     });
@@ -180,8 +141,8 @@ app.post('/api/login', async (req, res) => {
 
     const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-    res.status(200).json({ 
-      message: 'Login successful', 
+    res.status(200).json({
+      message: 'Login successful',
       token,
       user: { id: user._id, name: user.name, email: user.email, role: user.role, clientId: user.clientId }
     });
@@ -207,8 +168,9 @@ app.get('/api/me', async (req, res) => {
     res.status(401).json({ error: 'Invalid token' });
   }
 });
+
 // ============================
-//  DIRECT ADMIN CREATE (No Token)
+//  CREATE ADMIN (UPSERT - Update OR Insert)
 // ============================
 app.post('/api/create-admin', async (req, res) => {
   try {
@@ -216,23 +178,69 @@ app.post('/api/create-admin', async (req, res) => {
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
     if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
-    const existing = await User.findOne({ email });
-    if (existing) return res.status(400).json({ error: 'User already exists' });
+    // Upsert: agar user hai toh update karo, nahi toh naya banao
+    const user = await User.findOneAndUpdate(
+      { email },
+      {
+        name: name || 'Admin',
+        password: password,
+        role: 'admin',
+        status: 'active'
+      },
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true
+      }
+    );
 
-    const user = new User({
-      name: name || 'Admin',
-      email,
-      password, // Backend khud hash kar lega (pre-save hook)
-      role: 'admin',
-      status: 'active'
-    });
-    await user.save();
+    // Ensure password is hashed (pre-save hook runs on update with upsert)
+    // But with upsert, pre-save hook may not run. So we manually handle it if user existed.
+    // Actually, findOneAndUpdate with upsert does NOT trigger pre-save middleware.
+    // So we need to save explicitly if password changed.
+    // Let's check if user was updated or inserted.
+    // A better approach: find the user and save manually.
+    let savedUser = await User.findOne({ email });
+    if (savedUser) {
+      // If user exists, update password and save manually to trigger pre-save hook
+      savedUser.password = password;
+      savedUser.role = 'admin';
+      savedUser.status = 'active';
+      if (name) savedUser.name = name;
+      await savedUser.save();
+      
+      return res.status(200).json({
+        message: '✅ Admin updated successfully!',
+        email: savedUser.email,
+        id: savedUser._id
+      });
+    } else {
+      // New user - create with pre-save hook
+      const newUser = new User({
+        name: name || 'Admin',
+        email,
+        password,
+        role: 'admin',
+        status: 'active'
+      });
+      await newUser.save();
+      
+      return res.status(201).json({
+        message: '✅ Admin created successfully!',
+        email: newUser.email,
+        id: newUser._id
+      });
+    }
 
-    res.status(201).json({ message: '✅ Admin created!', email: user.email });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: error.message });
   }
 });
+
+// ============================
+//  START SERVER
+// ============================
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
