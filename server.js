@@ -207,7 +207,32 @@ app.get('/api/me', async (req, res) => {
     res.status(401).json({ error: 'Invalid token' });
   }
 });
+// ============================
+//  DIRECT ADMIN CREATE (No Token)
+// ============================
+app.post('/api/create-admin', async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
+    const existing = await User.findOne({ email });
+    if (existing) return res.status(400).json({ error: 'User already exists' });
+
+    const user = new User({
+      name: name || 'Admin',
+      email,
+      password, // Backend khud hash kar lega (pre-save hook)
+      role: 'admin',
+      status: 'active'
+    });
+    await user.save();
+
+    res.status(201).json({ message: '✅ Admin created!', email: user.email });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
