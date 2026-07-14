@@ -107,7 +107,7 @@ app.post('/api/invite', async (req, res) => {
     }
     const link = `${FRONTEND_URL}/?token=${token}&email=${encodeURIComponent(email)}`;
     await resend.emails.send({
-      from: 'Virtual Ally <onboarding@resend.dev>',
+      from: 'Virtual Ally <noreply@invite.virtualally.email>',
       to: email,
       subject: 'You are invited to Virtual Ally!',
       html: `<h2>Welcome, ${name}!</h2><p>Click the link to set password: <a href="${link}">${link}</a></p><p>Expires in 72 hours.</p>`
