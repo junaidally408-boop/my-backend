@@ -137,7 +137,7 @@ app.post('/api/invite', async (req, res) => {
     }
     const link = `${FRONTEND_URL}/?token=${token}&email=${encodeURIComponent(email)}`;
 
-    // ===== PROFESSIONAL & MINIMAL EMAIL =====
+    // Professional email
     await resend.emails.send({
       from: 'Virtual Ally <noreply@invite.virtualally.email>',
       to: email,
