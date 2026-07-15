@@ -23,7 +23,7 @@ mongoose.connect(process.env.MONGO_URI)
 //  MODELS (Schemas)
 // ============================
 
-// User Model (Already exists, but defining again for clarity)
+// User Model
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
@@ -51,7 +51,7 @@ const ClientSchema = new mongoose.Schema({
   consumed: { type: Number, default: 0 },
   referrals: { type: Number, default: 0 },
   history: { type: [Number], default: [0,0,0,0,0,0] },
-  createdBy: { type: String, required: true } // admin email
+  createdBy: { type: String, required: true }
 });
 const Client = mongoose.model('Client', ClientSchema);
 
@@ -65,7 +65,7 @@ const TaskSchema = new mongoose.Schema({
   assignedTo: { type: [String], default: [] },
   dueDate: { type: String, default: '' },
   tags: { type: [String], default: [] },
-  createdBy: { type: String, required: true }, // admin email
+  createdBy: { type: String, required: true },
   createdByName: { type: String, default: 'Admin' },
   createdAt: { type: String, default: () => new Date().toISOString().slice(0,10) },
   timeSpent: { type: Number, default: 0 },
@@ -81,10 +81,11 @@ const Task = mongoose.model('Task', TaskSchema);
 //  RESEND SETUP
 // ============================
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://peppy-buttercream-008e87.netlify.app';
+// 🔥 FIX: Frontend URL updated to Vercel
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://my-frontend-4j5ffw90z-virtual-ally.vercel.app';
 
 // ============================
-//  AUTH ROUTES (Invite, Login, etc.)
+//  AUTH ROUTES
 // ============================
 
 app.get('/health', (req, res) => res.json({ status: 'OK' }));
@@ -106,14 +107,84 @@ app.post('/api/invite', async (req, res) => {
       await newUser.save();
     }
     const link = `${FRONTEND_URL}/?token=${token}&email=${encodeURIComponent(email)}`;
+
+    // ===== BEAUTIFUL & PROFESSIONAL EMAIL =====
     await resend.emails.send({
       from: 'Virtual Ally <noreply@invite.virtualally.email>',
       to: email,
-      subject: 'You are invited to Virtual Ally!',
-      html: `<h2>Welcome, ${name}!</h2><p>Click the link to set password: <a href="${link}">${link}</a></p><p>Expires in 72 hours.</p>`
+      subject: `You're invited to join Virtual Ally, ${name}!`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Invitation</title>
+          </head>
+          <body style="font-family: 'Segoe UI', Arial, sans-serif; background-color: #f4f7fb; margin: 0; padding: 0; -webkit-font-smoothing: antialiased;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f4f7fb; padding: 40px 20px;">
+              <tr>
+                <td align="center">
+                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden; padding: 40px 30px;">
+                    <tr>
+                      <td align="center" style="padding-bottom: 20px;">
+                        <!-- Logo -->
+                        <img src="https://vibe.filesafe.space/1781548817483658086/attachments/4f7e2bb5-46d6-459e-8104-44ee1ccee4c0.webp" alt="Virtual Ally" width="80" style="display: block; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="text-align: center; padding-bottom: 8px;">
+                        <h1 style="font-size: 26px; font-weight: 800; color: #1A2A4A; margin: 0 0 4px 0; letter-spacing: -0.5px;">Welcome to Virtual Ally! 🎉</h1>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="text-align: center; padding-bottom: 24px;">
+                        <p style="font-size: 16px; color: #6B7A8E; margin: 0;">You've been invited to join as a <strong style="color: #1A2A4A; font-weight: 700;">${role}</strong>.</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 10px 0 30px 0; border-top: 1px solid #eaeef3; border-bottom: 1px solid #eaeef3;">
+                        <table width="100%" style="padding: 10px 0;">
+                          <tr>
+                            <td style="padding: 6px 0; font-size: 14px; color: #4B5A6B;"><span style="font-weight: 600; width: 100px; display: inline-block;">👤 Name:</span> ${name}</td>
+                          </tr>
+                          <tr>
+                            <td style="padding: 6px 0; font-size: 14px; color: #4B5A6B;"><span style="font-weight: 600; width: 100px; display: inline-block;">📧 Email:</span> ${email}</td>
+                          </tr>
+                          <tr>
+                            <td style="padding: 6px 0; font-size: 14px; color: #4B5A6B;"><span style="font-weight: 600; width: 100px; display: inline-block;">🔑 Role:</span> ${role}</td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="text-align: center; padding: 30px 0 20px 0;">
+                        <a href="${link}" style="display: inline-block; background: #1A2A4A; color: #ffffff; text-decoration: none; padding: 14px 40px; border-radius: 10px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 12px rgba(26, 42, 74, 0.15);">Accept Invitation →</a>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="text-align: center; padding-bottom: 16px;">
+                        <p style="font-size: 12px; color: #9CA3AF; margin: 0;">This link will expire in <strong>72 hours</strong> for security reasons.</p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="text-align: center; padding-top: 16px; border-top: 1px solid #f0f2f5;">
+                        <p style="font-size: 12px; color: #b0b8c4; margin: 0;">If you didn't request this, please ignore this email.</p>
+                        <p style="font-size: 12px; color: #b0b8c4; margin: 8px 0 0 0;">© 2026 Virtual Ally. All rights reserved.</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </body>
+        </html>
+      `
     });
+
     res.json({ message: 'Invitation sent successfully!' });
   } catch (error) {
+    console.error('Invite error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -153,10 +224,10 @@ app.post('/api/login', async (req, res) => {
 });
 
 // ============================
-//  DATA ROUTES (AUTOMATIC)
+//  DATA ROUTES
 // ============================
 
-// Get Team (Users)
+// Get Team
 app.get('/api/team', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -164,7 +235,6 @@ app.get('/api/team', async (req, res) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const users = await User.find({}).select('-password -inviteToken -tokenExpiry');
-    // If user is not admin, only show themselves
     if (decoded.role !== 'admin') {
       return res.json(users.filter(u => u.email === decoded.email));
     }
@@ -363,7 +433,6 @@ app.put('/api/profile', async (req, res) => {
     const { name, phone, avatar } = req.body;
     if (name) user.name = name;
     if (phone !== undefined) user.phone = phone;
-    // Avatar is frontend only for now
     await user.save();
     res.json({ message: 'Profile updated', user: { name: user.name, email: user.email, phone: user.phone, role: user.role } });
   } catch (error) {
@@ -391,6 +460,7 @@ app.post('/api/create-admin', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 // ============================
 //  DELETE USER (Admin Only)
 // ============================
@@ -405,7 +475,6 @@ app.delete('/api/users/:id', async (req, res) => {
     }
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    // Prevent deleting yourself
     if (user.email === decoded.email) {
       return res.status(400).json({ error: 'You cannot delete yourself.' });
     }
@@ -415,4 +484,8 @@ app.delete('/api/users/:id', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// ============================
+//  START SERVER
+// ============================
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
